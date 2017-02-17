@@ -39,6 +39,19 @@
 #include "TEncSlice.h"
 #include <math.h>
 
+//IAGO BEGIN
+
+#include <sys/time.h>
+#include<../TLibCommon/TComRom.cpp>
+
+//Variables to keep the Tiles and CUs compression times
+extern FILE *time_perCU;
+double time_compress_CU[1001];
+double time_compressEncode_CU[1001];    //Salva o tempo total por CU
+extern double time_tile[100];
+
+//IAGO END
+
 //! \ingroup TLibEncoder
 //! \{
 
@@ -807,6 +820,13 @@ Void TEncSlice::compressSlice( TComPic*& rpcPic )
        uiEncCUOrder < (uiBoundingCUAddr+(rpcPic->getNumPartInCU()-1))/rpcPic->getNumPartInCU();
        uiCUAddr = rpcPic->getPicSym()->getCUOrderMap(++uiEncCUOrder) )
   {
+      
+    //IAGO BEGIN  
+    //Get time before the compression
+    struct timeval  tv1, tv2;
+    gettimeofday(&tv1, NULL);
+    //IAGO END  
+      
     // initialize CU encoder
     TComDataCU*& pcCU = rpcPic->getCU( uiCUAddr );
     pcCU->initCU( rpcPic, uiCUAddr );
@@ -977,6 +997,14 @@ Void TEncSlice::compressSlice( TComPic*& rpcPic )
     m_uiPicTotalBits += pcCU->getTotalBits();
     m_dPicRdCost     += pcCU->getTotalCost();
     m_uiPicDist      += pcCU->getTotalDistortion();
+  
+    //IAGO BEGIN
+    //Get time at the end of compression, and calculate the difference (compression time)
+    gettimeofday(&tv2, NULL);
+    time_compress_CU[uiEncCUOrder] = (double) (tv2.tv_usec - tv1.tv_usec)/1000000 +
+             (double) (tv2.tv_sec - tv1.tv_sec);    
+    //IAGO END
+  
   }
   if ((iNumSubstreams > 1) && !depSliceSegmentsEnabled)
   {
@@ -1104,6 +1132,13 @@ Void TEncSlice::encodeSlice   ( TComPic*& rpcPic, TComOutputBitstream* pcSubstre
        uiEncCUOrder < (uiBoundingCUAddr+rpcPic->getNumPartInCU()-1)/rpcPic->getNumPartInCU();
        uiCUAddr = rpcPic->getPicSym()->getCUOrderMap(++uiEncCUOrder) )
   {
+      
+    //IAGO BEGIN
+    //Get the time before the encoding
+    struct timeval  tv1, tv2;
+    gettimeofday(&tv1, NULL); 
+    //IAGO END
+      
     uiTileCol = rpcPic->getPicSym()->getTileIdxMap(uiCUAddr) % (rpcPic->getPicSym()->getNumColumnsMinus1()+1); // what column of tiles are we in?
     uiTileStartLCU = rpcPic->getPicSym()->getTComTile(rpcPic->getPicSym()->getTileIdxMap(uiCUAddr))->getFirstCUAddr();
     uiTileLCUX = uiTileStartLCU % uiWidthInLCUs;
@@ -1234,6 +1269,27 @@ Void TEncSlice::encodeSlice   ( TComPic*& rpcPic, TComOutputBitstream* pcSubstre
     {
       m_pcBufferSbacCoders[uiTileCol].loadContexts( &pcSbacCoders[uiSubStrm] );
     }
+    
+    //IAGO BEGIN
+    //Get time at the end of encoding, calculates de encoding time and generates the total time (encoding + compressing))
+    gettimeofday(&tv2, NULL);
+    //get tile index
+    int tile_Idx=rpcPic->getPicSym()->getTileIdxMap(uiCUAddr);
+    //increment tile time with CU compress and encode times;
+    time_tile[tile_Idx] += time_compress_CU[uiEncCUOrder] +
+    (double) (tv2.tv_usec - tv1.tv_usec)/1000000 +
+    (double) (tv2.tv_sec - tv1.tv_sec);
+ 
+    //print time per CU
+    fprintf (time_perCU,"%d %f\n", pcCU->getAddr() , time_compress_CU[uiEncCUOrder] +
+    (double) (tv2.tv_usec - tv1.tv_usec)/1000000 +
+    (double) (tv2.tv_sec - tv1.tv_sec));
+    time_compressEncode_CU[pcCU->getAddr()] =  time_compress_CU[uiEncCUOrder] +
+                                            (double) (tv2.tv_usec - tv1.tv_usec)/1000000 +
+                                            (double) (tv2.tv_sec - tv1.tv_sec);
+    //IAGO END    
+  
+    
   }
   if( depSliceSegmentsEnabled )
   {

@@ -43,6 +43,19 @@
 //! \ingroup TAppEncoder
 //! \{
 
+//IAGO BEGIN
+
+//Variables to keep the Tiles and CUs compression times
+FILE *time_perCU, *time_perTile;
+double time_tile[100];
+
+int frame=0;
+  
+FILE* dadosSkips;
+FILE *dadosCUs;
+
+
+//IAGO END
 #include "../Lib/TLibCommon/Debug.h"
 
 // ====================================================================================================================
@@ -53,6 +66,16 @@ int main(int argc, char* argv[])
 {
   TAppEncTop  cTAppEncTop;
 
+  
+  //IAGO BEGIN
+  //Open files to save compression times
+  time_perCU = fopen("time_perCU.txt","w");
+  time_perTile = fopen("time_perTile.csv","a");
+  
+  dadosSkips = fopen("skips.csv", "w");
+  dadosCUs = fopen("CUs.csv", "w");
+  //IAGO END  
+ 
   // print information
   fprintf( stdout, "\n" );
   fprintf( stdout, "HM software: Encoder Version [%s] (including RExt)", NV_VERSION );
@@ -104,6 +127,15 @@ int main(int argc, char* argv[])
   // destroy application encoder class
   cTAppEncTop.destroy();
 
+  
+ //IAGO BEGIN 
+ //Close the files opened during execution
+ fclose(time_perCU);
+ fclose(time_perTile);
+ fclose(dadosCUs);
+ fclose(dadosSkips);
+ //IAGO END
+  
   return 0;
 }
 

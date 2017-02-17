@@ -55,6 +55,20 @@ using namespace std;
 Bool g_bFinalEncode = false;
 #endif
 
+
+//IAGO BEGIN
+extern FILE *time_perTile;
+extern double time_tile[100];
+extern double time_compressEncode_CU[1001];    //SAVES THE TOTAL TIME PER CU   //IAGO
+
+extern FILE* dadosSkips; //saves skip data
+extern FILE* dadosCUs;  //saves cu depth, skip, predition and partiion mode
+
+void getPicData(TComPic *pic);
+void writeCUData(TComDataCU *CU);
+
+//IAGO END
+
 //! \ingroup TLibEncoder
 //! \{
 
@@ -613,6 +627,13 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
   for ( Int iGOPid=0; iGOPid < m_iGopSize; iGOPid++ )
   {
+      
+    //IAGO BEGIN
+    //Initialise times per Tile
+    for(int i=0; i<100;i++)
+         time_tile[i]=0;
+    //IAGO END
+      
 #if EFFICIENT_FIELD_IRAP
     if(IRAPtoReorder)
     {
@@ -808,6 +829,11 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
     {
       pcSlice->setSliceType(I_SLICE);
     }
+    
+    
+    //IAGO BEGIN
+    fprintf(time_perTile,"%d,",pcSlice->getPOC());  //prints number of frame before time per tile, useful when using randomaccess
+    //IAGO END
     
     // Set the nal unit type
     pcSlice->setNalUnitType(getNalUnitType(pocCurr, m_iLastIDR, isField));
@@ -1185,6 +1211,12 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       m_pcSliceEncoder->precompressSlice( pcPic );
       m_pcSliceEncoder->compressSlice   ( pcPic );
 
+      
+    //IAGO BEGIN
+    //extracts the CU information from each encoded CU
+    getPicData(pcPic);
+    //IAGO END
+      
       Bool bNoBinBitConstraintViolated = (!pcSlice->isNextSlice() && !pcSlice->isNextSliceSegment());
       if (pcSlice->isNextSlice() || (bNoBinBitConstraintViolated && m_pcCfg->getSliceMode()==FIXED_NUMBER_OF_LCU))
       {
@@ -2543,6 +2575,19 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
          uibits );
 #endif
 
+  
+   
+   //IAGO BEGIN
+   //Saves times per Tile in a file
+   for(int i=0; i<100;i++) {
+         if(time_tile[i]>0) {
+             fprintf(time_perTile,"%f,",time_tile[i]);
+         }
+    }
+     fprintf(time_perTile,"%6.4lf,%10d,\n",dPSNR[COMPONENT_Y], uibits );
+   //IAGO END
+   
+  
   printf(" [Y %6.4lf dB    U %6.4lf dB    V %6.4lf dB]", dPSNR[COMPONENT_Y], dPSNR[COMPONENT_Cb], dPSNR[COMPONENT_Cr] );
   if (printFrameMSE)
   {
@@ -3020,6 +3065,78 @@ Void TEncGOP::dblMetric( TComPic* pcPic, UInt uiNumSlices )
 
   free(colSAD);
   free(rowSAD);
+}
+
+
+//IAGO BEGIN
+void getPicData(TComPic *pic){
+    int i;
+    for(i=0; i<pic->getNumCUsInFrame(); i++){
+        //printf(">>CTU addr %d\n", i);
+        writeCUData(pic->getCU(i));
+    }
+}
+
+void writeCUData(TComDataCU *CU){
+    int i=0, lenght=0, totalSize;
+    int *depth, *predMode, *partSize, *skipFlag;
+    int weightedSkip = 0;
+
+    totalSize = CU->getTotalNumPart();
+    
+    depth = (int *) malloc(sizeof(int) * totalSize);
+    predMode = (int *) malloc(sizeof(int) * totalSize);
+    partSize = (int *) malloc(sizeof(int) * totalSize);
+    skipFlag = (int *) malloc(sizeof(int) * totalSize);
+    
+    
+    //CTU number, X and Y position
+    fprintf(dadosCUs, "%d,%d,%d,",CU->getAddr(), CU->getCUPelX(), CU->getCUPelY());
+    
+    while(i < totalSize){
+        //extracts the data and saves in array
+        depth[lenght] = (int) CU->getDepth(i);
+        skipFlag[lenght] = (int) CU->getSkipFlag(i);
+        predMode[lenght] = (int) CU->getPredictionMode(i);
+        partSize[lenght] = (int) CU->getPartitionSize(i);
+        
+        weightedSkip = weightedSkip + skipFlag[lenght]*(64>>2*depth[lenght]);   //adjusts skips weights based on CU sizes
+                                                                                //8x8->1, 16x16->4, 32x32->16, 64x64->64
+        
+        i = i + ((16>>depth[lenght]) * (16>>depth[lenght]));
+        lenght++;
+    }
+    
+    fprintf(dadosSkips, "%d;%d\n", CU->getAddr(), weightedSkip);
+
+    
+    //number of CUs in the CTU, POC number
+    fprintf(dadosCUs, "%d,%d\n", lenght, CU->getPic()->getPOC())    ;
+    
+    fprintf(dadosCUs, "%d", depth[0]);
+    for(i=1; i<lenght; i++){
+        fprintf(dadosCUs,",%d", depth[i]);
+    }
+    fprintf(dadosCUs,"\n");
+    
+    fprintf(dadosCUs, "%d", skipFlag[0]);
+    for(i=1; i<lenght; i++){
+        fprintf(dadosCUs,",%d", skipFlag[i]);
+    }
+    fprintf(dadosCUs,"\n");
+    
+    fprintf(dadosCUs, "%d", predMode[0]);
+    for(i=1; i<lenght; i++){
+        fprintf(dadosCUs,",%d", predMode[i]);
+    }
+    fprintf(dadosCUs,"\n");    
+
+    fprintf(dadosCUs, "%d", partSize[0]);
+    for(i=1; i<lenght; i++){
+        fprintf(dadosCUs,",%d", partSize[i]);
+    }
+    fprintf(dadosCUs,"\n");    
+    
 }
 
 //! \}
