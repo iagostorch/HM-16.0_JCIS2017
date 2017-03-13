@@ -46,7 +46,7 @@
 //IAGO BEGIN
 
 //Variables to keep the Tiles and CUs compression times
-FILE *time_perCU, *time_perTile;
+FILE *time_perCU, *time_perTile, *boundaries;
 double time_tile[100];
 
 int frame=0;
@@ -71,6 +71,9 @@ int main(int argc, char* argv[])
   //Open files to save compression times
   time_perCU = fopen("time_perCU.txt","w");
   time_perTile = fopen("time_perTile.csv","a");
+  
+  boundaries = fopen("boundaries.txt", "r");    //pre-defined boundaries
+  
   
   dadosSkips = fopen("skips.csv", "w");
   dadosCUs = fopen("CUs.csv", "w");
@@ -132,6 +135,7 @@ int main(int argc, char* argv[])
  //Close the files opened during execution
  fclose(time_perCU);
  fclose(time_perTile);
+ fclose(boundaries);
  fclose(dadosCUs);
  fclose(dadosSkips);
  //IAGO END

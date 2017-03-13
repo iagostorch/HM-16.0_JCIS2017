@@ -61,6 +61,8 @@ extern FILE *time_perTile;
 extern double time_tile[100];
 extern double time_compressEncode_CU[1001];    //SAVES THE TOTAL TIME PER CU   //IAGO
 
+extern FILE *boundaries;    //pre-defined boundaries
+
 extern FILE* dadosSkips; //saves skip data
 extern FILE* dadosCUs;  //saves cu depth, skip, predition and partiion mode
 
@@ -1168,8 +1170,8 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
     Int  p, j;
     UInt uiEncCUAddr;
 
-    pcPic->getPicSym()->initTiles(pcSlice->getPPS());
-
+    pcPic->getPicSym()->initTiles(pcSlice->getPPS(), boundaries);
+    
     // Allocate some coders, now we know how many tiles there are.
     const Int iNumSubstreams = pcSlice->getPPS()->getNumSubstreams();
 

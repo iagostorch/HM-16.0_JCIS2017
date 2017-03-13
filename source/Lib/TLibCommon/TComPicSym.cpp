@@ -193,7 +193,7 @@ UInt TComPicSym::getPicSCUAddr( UInt SCUEncOrder )
   return getCUOrderMap(SCUEncOrder/m_uiNumPartitions)*m_uiNumPartitions + SCUEncOrder%m_uiNumPartitions;
 }
 
-Void TComPicSym::initTiles(TComPPS *pps)
+Void TComPicSym::initTiles(TComPPS *pps, FILE* boundaries)
 {
   //set NumColumnsMinus1 and NumRowsMinus1
   setNumColumnsMinus1( pps->getNumTileColumnsMinus1() );
@@ -223,6 +223,55 @@ Void TComPicSym::initTiles(TComPPS *pps)
   }
   else
   {
+    //INICIALIZAR getTileColumnWidth e height
+
+   // int widths[5], heights[5];
+    std::vector<Int> widthList(5,0), heightList(5,0), widthList2(5,0), heightList2(5,0);
+    char line[100];
+    char *token;
+    int i;
+    printf("ftell arq: %ld\n", ftell(boundaries));
+    if(fgets(line, 100, boundaries) != NULL) {
+        
+        token = strtok(line, ";");
+        
+        //reads the pre-defined column widths
+        for(i=0; i<pps->getNumTileColumnsMinus1(); i++){
+            token = strtok(NULL, ";");
+            //printf("token: %s\n", token);
+            //widths[i] = atoi(token);
+            //printf("width: %d\n", widths[i]);
+            widthList[i] = atoi(token);
+            //printf("width: %d\n", widthList[i]);
+        }
+        //reads the pre-defined row heights
+        for(i=0; i<pps->getTileNumRowsMinus1(); i++){
+            token = strtok(NULL, ";");
+            //printf("token: %s\n", token);
+           // heights[i] = atoi(token);
+            //printf("height: %d\n", heights[i]);
+            heightList[i] = atoi(token);
+            //printf("height: %d\n", heightList[i]);
+        }
+        
+        //adjusts the array, ie, [x, y, z] -> [x, y-x, z-y]
+        widthList2[0] = widthList[0];
+        for(i=1; i<pps->getNumTileColumnsMinus1(); i++){
+            widthList2[i] = widthList[i] - widthList[i-1];
+        }
+        //pps->setTileColumnWidth(widthList2);
+        heightList2[0] = heightList[0];
+        for(i=1; i<pps->getTileNumRowsMinus1() ; i++){
+            heightList2[i] = heightList[i] - heightList[i-1];
+        }
+        //pps->setTileRowHeight(heightList2);
+    }
+      
+        //copy
+    pps->setTileColumnWidth(widthList2);
+    pps->setTileRowHeight(heightList2);  
+    
+    
     //set the width for each tile
     for(Int row=0; row < numRows; row++)
     {
@@ -245,6 +294,15 @@ Void TComPicSym::initTiles(TComPPS *pps)
         cumulativeTileHeight += pps->getTileRowHeight(row);
       }
       m_tileParameters[getNumRowsMinus1() * numCols + col].setTileHeight( getFrameHeightInCU()-cumulativeTileHeight );
+    }
+    
+    printf("alturas:\n");
+    for(Int row=0; row<numRows-1; row++){
+        printf("row %d: %d\n", row, pps->getTileRowHeight(row));
+    }
+    printf("larguras:\n");
+    for(Int col=0; col<numCols-1; col++){
+            printf("col %d: %d\n", col, pps->getTileColumnWidth(col));
     }
   }
 
