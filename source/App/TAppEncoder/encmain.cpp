@@ -135,7 +135,8 @@ int main(int argc, char* argv[])
  //Close the files opened during execution
  fclose(time_perCU);
  fclose(time_perTile);
- fclose(boundaries);
+ if(boundaries != NULL)
+    fclose(boundaries);
  fclose(dadosCUs);
  fclose(dadosSkips);
  //IAGO END
